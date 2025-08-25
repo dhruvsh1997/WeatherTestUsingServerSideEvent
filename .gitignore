@@ -23,16 +23,17 @@ share/python-wheels/
 *.egg
 
 # Virtual Environment
-envSSEWeather/
 venv/
 env/
 ENV/
 
-# Environment variables
+# Environment files
 .env
 .env.local
-.env.production
 .env.development
+.env.test
+.env.production
+envSSEWeather/
 
 # IDE
 .vscode/
