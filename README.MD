@@ -349,6 +349,9 @@ black app.py
 pytest
 ```
 
+## Testing
+#Pylint Test : pylint --disable=W,C,R app.py > errors.txt 
+
 ## 🔮 Future Enhancements
 
 - **Database Integration**: Store historical weather data
