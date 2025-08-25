@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Weather Dashboard - SSE Example</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .weather-container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        .weather-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .weather-main {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+        .temperature {
+            font-size: 5rem;
+            font-weight: 300;
+            color: #2d3436;
+        }
+        .condition {
+            font-size: 1.8rem;
+            color: #636e72;
+            margin-bottom: 10px;
+        }
+        .weather-icon {
+            font-size: 6rem;
+            color: #fdcb6e;
+        }
+        .weather-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .detail-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .detail-card:hover {
+            transform: translateY(-5px);
+        }
+        .detail-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2d3436;
+        }
+        .detail-label {
+            color: #636e72;
+            margin-top: 5px;
+        }
+        .last-updated {
+            text-align: center;
+            margin-top: 20px;
+            color: #636e72;
+            font-size: 0.9rem;
+        }
+        .connection-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 50px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .connected {
+            background: #00b894;
+            color: white;
+        }
+        .disconnected {
+            background: #e17055;
+            color: white;
+        }
+        .update-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00b894;
+            margin-left: 10px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="weather-container">
+        <div class="weather-header">
+            <h1 class="display-4">Live Weather Station</h1>
+            <p class="lead">Real-time updates via Server-Sent Events</p>
+        </div>
+        
+        <div class="weather-main">
+            <div>
+                <div class="temperature" id="temperature">--°C</div>
+                <div class="condition" id="condition">--</div>
+            </div>
+            <div class="weather-icon" id="weather-icon">
+                <i class="fas fa-sun"></i>
+            </div>
+        </div>
+        
+        <div class="weather-details">
+            <div class="detail-card">
+                <div class="detail-value" id="humidity">--%</div>
+                <div class="detail-label">Humidity</div>
+            </div>
+            <div class="detail-card">
+                <div class="detail-value" id="pressure">-- hPa</div>
+                <div class="detail-label">Pressure</div>
+            </div>
+            <div class="detail-card">
+                <div class="detail-value" id="update-count">0</div>
+                <div class="detail-label">Updates Received</div>
+            </div>
+        </div>
+        
+        <div class="last-updated">
+            Last updated: <span id="last-updated">Never</span>
+            <span class="update-indicator" id="update-indicator"></span>
+        </div>
+    </div>
+    
+    <div class="connection-status connected" id="connection-status">
+        <i class="fas fa-wifi"></i>
+        <span>Connected</span>
+    </div>
+
+    <script>
+        // SSE connection
+        let eventSource;
+        let updateCount = 0;
+        
+        // Weather condition icons mapping
+        const weatherIcons = {
+            'Sunny': 'fas fa-sun',
+            'Partly Cloudy': 'fas fa-cloud-sun',
+            'Cloudy': 'fas fa-cloud',
+            'Light Rain': 'fas fa-cloud-rain',
+            'Heavy Rain': 'fas fa-cloud-showers-heavy',
+            'Thunderstorm': 'fas fa-bolt',
+            'Snow': 'fas fa-snowflake'
+        };
+        
+        // Function to start SSE connection
+        function startEventSource() {
+            eventSource = new EventSource('/weather-updates');
+            
+            eventSource.onopen = function() {
+                console.log('SSE connection opened');
+                updateConnectionStatus(true);
+            };
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                updateWeatherDisplay(data);
+                updateCount++;
+                document.getElementById('update-count').textContent = updateCount;
+                
+                // Flash update indicator
+                const indicator = document.getElementById('update-indicator');
+                indicator.style.background = '#00b894';
+                setTimeout(() => {
+                    indicator.style.background = '#74b9ff';
+                }, 500);
+            };
+            
+            eventSource.onerror = function() {
+                console.error('SSE connection error');
+                updateConnectionStatus(false);
+                
+                // Attempt to reconnect after 3 seconds
+                setTimeout(() => {
+                    console.log('Attempting to reconnect...');
+                    startEventSource();
+                }, 3000);
+            };
+        }
+        
+        // Function to update weather display
+        function updateWeatherDisplay(data) {
+            document.getElementById('temperature').textContent = data.temperature + '°C';
+            document.getElementById('condition').textContent = data.condition;
+            document.getElementById('humidity').textContent = data.humidity + '%';
+            document.getElementById('pressure').textContent = data.pressure + ' hPa';
+            document.getElementById('last-updated').textContent = data.timestamp;
+            
+            // Update weather icon
+            const iconClass = weatherIcons[data.condition] || 'fas fa-question';
+            document.getElementById('weather-icon').innerHTML = `<i class="${iconClass}"></i>`;
+            
+            // Update temperature color based on value
+            const tempElement = document.getElementById('temperature');
+            if (data.temperature < 0) {
+                tempElement.style.color = '#74b9ff';  // Cold - blue
+            } else if (data.temperature > 30) {
+                tempElement.style.color = '#e17055';  // Hot - red
+            } else {
+                tempElement.style.color = '#2d3436';   // Normal - dark
+            }
+        }
+        
+        // Function to update connection status
+        function updateConnectionStatus(connected) {
+            const statusElement = document.getElementById('connection-status');
+            if (connected) {
+                statusElement.className = 'connection-status connected';
+                statusElement.innerHTML = '<i class="fas fa-wifi"></i><span>Connected</span>';
+            } else {
+                statusElement.className = 'connection-status disconnected';
+                statusElement.innerHTML = '<i class="fas fa-wifi-slash"></i><span>Disconnected</span>';
+            }
+        }
+        
+        // Start SSE connection when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            startEventSource();
+        });
+        
+        // Clean up when page unloads
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>
